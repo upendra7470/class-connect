@@ -1,21 +1,24 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { QrCode } from "lucide-react";
+import { QrCode, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 type AppRole = "student" | "leader" | "faculty" | "hod";
+const roleLabels: Record<AppRole, string> = { student: "Student", leader: "Class Leader", faculty: "Faculty", hod: "HOD" };
 
 export default function Login() {
+  const [searchParams] = useSearchParams();
+  const roleParam = (searchParams.get("role") as AppRole) || "student";
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<AppRole>("student");
+  const [role, setRole] = useState<AppRole>(roleParam);
   const [department, setDepartment] = useState("");
   const [year, setYear] = useState("");
   const [section, setSection] = useState("");
