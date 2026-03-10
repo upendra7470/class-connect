@@ -79,10 +79,7 @@ export default function StudentDashboard() {
       {tab === "qr" ? (
         <div className="flex flex-col items-center gap-6">
           <h2 className="text-xl font-bold">My QR Code</h2>
-          <div className="bg-card border rounded-2xl p-8">
-            <QRCodeSVG value={user?.id || ""} size={220} level="H" />
-          </div>
-          <p className="text-sm text-muted-foreground">Show this QR code to your class leader for attendance</p>
+          <QRGenerator studentId={user?.id || ""} />
         </div>
       ) : tab === "attendance" ? (
         <div className="space-y-4">
