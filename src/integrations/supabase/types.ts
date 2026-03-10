@@ -14,16 +14,185 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      attendance: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          marked_by: string
+          period_number: number
+          student_id: string
+          subject_id: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          id?: string
+          marked_by: string
+          period_number: number
+          student_id: string
+          subject_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          marked_by?: string
+          period_number?: number
+          student_id?: string
+          subject_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          department: string
+          email: string
+          id: string
+          name: string
+          section: string
+          user_id: string
+          year: string
+        }
+        Insert: {
+          created_at?: string
+          department?: string
+          email?: string
+          id?: string
+          name?: string
+          section?: string
+          user_id: string
+          year?: string
+        }
+        Update: {
+          created_at?: string
+          department?: string
+          email?: string
+          id?: string
+          name?: string
+          section?: string
+          user_id?: string
+          year?: string
+        }
+        Relationships: []
+      }
+      subjects: {
+        Row: {
+          created_at: string
+          department: string
+          faculty_id: string | null
+          id: string
+          subject_code: string
+          subject_name: string
+        }
+        Insert: {
+          created_at?: string
+          department?: string
+          faculty_id?: string | null
+          id?: string
+          subject_code: string
+          subject_name: string
+        }
+        Update: {
+          created_at?: string
+          department?: string
+          faculty_id?: string | null
+          id?: string
+          subject_code?: string
+          subject_name?: string
+        }
+        Relationships: []
+      }
+      timetable: {
+        Row: {
+          created_at: string
+          day_of_week: string
+          department: string
+          faculty_id: string | null
+          id: string
+          period_number: number
+          section: string
+          subject_id: string
+          year: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: string
+          department: string
+          faculty_id?: string | null
+          id?: string
+          period_number: number
+          section: string
+          subject_id: string
+          year: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: string
+          department?: string
+          faculty_id?: string | null
+          id?: string
+          period_number?: number
+          section?: string
+          subject_id?: string
+          year?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "timetable_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "student" | "leader" | "faculty" | "hod"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +319,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["student", "leader", "faculty", "hod"],
+    },
   },
 } as const
