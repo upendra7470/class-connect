@@ -69,11 +69,31 @@ export default function LeaderDashboard() {
       .then(({ count }) => setTodayCount(count || 0));
   }, [user, scannedStudents]);
 
-  const handleScan = useCallback(async (studentId: string) => {
+  const lastScannedTs = useRef<Map<string, number>>(new Map());
+
+  const handleScan = useCallback(async (rawData: string) => {
     if (!selectedSubject || !user) {
       toast.error("Please select a subject first");
       return;
     }
+
+    // Parse QR data — supports both plain ID and JSON {student_id, ts}
+    let studentId: string;
+    let qrTimestamp: number | null = null;
+    try {
+      const parsed = JSON.parse(rawData);
+      studentId = parsed.student_id;
+      qrTimestamp = parsed.ts;
+    } catch {
+      studentId = rawData;
+    }
+
+    // Reject duplicate/stale QR (same timestamp already scanned)
+    if (qrTimestamp && lastScannedTs.current.get(studentId) === qrTimestamp) {
+      toast.warning("This QR code was already scanned. Wait for it to refresh.");
+      return;
+    }
+
     if (scannedStudents.some((s) => s.student_id === studentId)) {
       toast.warning("Student already scanned this period");
       return;
@@ -106,6 +126,7 @@ export default function LeaderDashboard() {
       return;
     }
 
+    if (qrTimestamp) lastScannedTs.current.set(studentId, qrTimestamp);
     setScannedStudents((prev) => [...prev, {
       student_id: studentId,
       name: studentProfile.name,
