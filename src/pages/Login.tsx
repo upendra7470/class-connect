@@ -118,6 +118,10 @@ export default function Login() {
             </button>
           </p>
         </form>
+
+        <button onClick={() => navigate("/")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mx-auto mt-4 transition-colors">
+          <ArrowLeft className="h-4 w-4" /> Back to role selection
+        </button>
       </div>
     </div>
   );
