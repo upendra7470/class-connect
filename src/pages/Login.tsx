@@ -1,21 +1,24 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { QrCode } from "lucide-react";
+import { QrCode, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 type AppRole = "student" | "leader" | "faculty" | "hod";
+const roleLabels: Record<AppRole, string> = { student: "Student", leader: "Class Leader", faculty: "Faculty", hod: "HOD" };
 
 export default function Login() {
+  const [searchParams] = useSearchParams();
+  const roleParam = (searchParams.get("role") as AppRole) || "student";
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<AppRole>("student");
+  const [role, setRole] = useState<AppRole>(roleParam);
   const [department, setDepartment] = useState("");
   const [year, setYear] = useState("");
   const [section, setSection] = useState("");
@@ -56,7 +59,7 @@ export default function Login() {
             <QrCode className="h-7 w-7 text-primary-foreground" />
           </div>
           <h1 className="text-2xl font-bold">Smart QR Attendance</h1>
-          <p className="text-muted-foreground mt-1">{isSignUp ? "Create your account" : "Sign in to continue"}</p>
+          <p className="text-muted-foreground mt-1">{isSignUp ? "Create your account" : "Sign in"} as <span className="font-medium text-primary">{roleLabels[roleParam]}</span></p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-card border rounded-xl p-6 space-y-4">
@@ -115,6 +118,10 @@ export default function Login() {
             </button>
           </p>
         </form>
+
+        <button onClick={() => navigate("/")} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mx-auto mt-4 transition-colors">
+          <ArrowLeft className="h-4 w-4" /> Back to role selection
+        </button>
       </div>
     </div>
   );
