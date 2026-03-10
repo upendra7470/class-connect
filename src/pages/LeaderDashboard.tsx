@@ -30,7 +30,7 @@ export default function LeaderDashboard() {
   useEffect(() => {
     if (!profile) return;
     const fetchSubjects = async () => {
-      const { data } = await supabase.from("subjects").select("id, subject_name, subject_code").eq("department", profile.department);
+      const { data } = await supabase.from("subjects").select("id, subject_name, subject_code");
       if (data) setSubjects(data);
     };
 
