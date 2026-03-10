@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Login from "./pages/Login";
+import RoleSelector from "./pages/RoleSelector";
 import StudentDashboard from "./pages/StudentDashboard";
 import LeaderDashboard from "./pages/LeaderDashboard";
 import FacultyDashboard from "./pages/FacultyDashboard";
