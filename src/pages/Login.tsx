@@ -59,7 +59,7 @@ export default function Login() {
             <QrCode className="h-7 w-7 text-primary-foreground" />
           </div>
           <h1 className="text-2xl font-bold">Smart QR Attendance</h1>
-          <p className="text-muted-foreground mt-1">{isSignUp ? "Create your account" : "Sign in to continue"}</p>
+          <p className="text-muted-foreground mt-1">{isSignUp ? "Create your account" : "Sign in"} as <span className="font-medium text-primary">{roleLabels[roleParam]}</span></p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-card border rounded-xl p-6 space-y-4">
