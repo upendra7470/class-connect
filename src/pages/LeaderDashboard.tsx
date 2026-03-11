@@ -158,7 +158,7 @@ export default function LeaderDashboard() {
               <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {[1,2,3,4,5,6,7,8].map((p) => (
+                  {[1,2,3,4,5,6,7].map((p) => (
                     <SelectItem key={p} value={String(p)}>Period {p}</SelectItem>
                   ))}
                 </SelectContent>
