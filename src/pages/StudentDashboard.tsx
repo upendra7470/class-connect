@@ -5,8 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { QRGenerator } from "@/components/QRGenerator";
 import { StatCard } from "@/components/StatCard";
-import { BookOpen, CheckCircle, BarChart3, Calendar } from "lucide-react";
+import { BookOpen, CheckCircle, BarChart3, Calendar, FlaskConical } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { BunkSimulator } from "@/components/BunkSimulator";
 
 interface AttendanceRecord {
   id: string;
