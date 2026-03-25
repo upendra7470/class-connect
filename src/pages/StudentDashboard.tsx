@@ -94,6 +94,14 @@ export default function StudentDashboard() {
           <h2 className="text-xl font-bold">My QR Code</h2>
           <QRGenerator studentId={user?.id || ""} />
         </div>
+      ) : tab === "bunk" ? (
+        <BunkSimulator
+          subjectAttendance={subjectAttendance.map((s) => ({
+            id: s.id, subject_name: s.subject_name, subject_code: s.subject_code,
+            attended: s.count, total: s.total,
+          }))}
+          timetable={timetableWithIds}
+        />
       ) : tab === "attendance" ? (
         <div className="space-y-4">
           <h2 className="text-xl font-bold">Attendance History</h2>
