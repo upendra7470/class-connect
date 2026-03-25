@@ -36,7 +36,8 @@ export default function Login() {
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success("Account created! Please check your email to confirm.");
+        toast.success("Account created successfully! You can now sign in.");
+        setIsSignUp(false);
       }
     } else {
       const { error } = await signIn(email, password);
