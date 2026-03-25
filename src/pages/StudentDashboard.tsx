@@ -59,10 +59,22 @@ export default function StudentDashboard() {
   const attended = attendance.length;
   const percentage = totalClasses > 0 ? Math.round((attended / totalClasses) * 100) : 0;
 
-  // Per-subject breakdown
+  // Per-subject breakdown with total estimate
   const subjectAttendance = subjects.map((s) => {
     const count = attendance.filter((a) => a.subject_id === s.id).length;
-    return { ...s, count };
+    // Count how many timetable slots this subject has per week
+    const weeklySlots = timetable.filter((t) => {
+      // timetable has subjects relation, match by name/code
+      return t.subjects?.subject_code === s.subject_code;
+    }).length;
+    const estimatedTotal = Math.max(weeklySlots * 4, 1); // ~4 weeks estimate, min 1
+    return { ...s, count, total: estimatedTotal };
+  });
+
+  // Timetable entries with subject_id for bunk simulator
+  const timetableWithIds = timetable.map((t) => {
+    const sub = subjects.find((s) => s.subject_code === t.subjects?.subject_code);
+    return { day_of_week: t.day_of_week, period_number: t.period_number, subject_id: sub?.id || "" };
   });
 
   if (loading) {
