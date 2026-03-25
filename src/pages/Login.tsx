@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QrCode, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 type AppRole = "student" | "leader" | "faculty" | "hod";
 const roleLabels: Record<AppRole, string> = { student: "Student", leader: "Class Leader", faculty: "Faculty", hod: "HOD" };
