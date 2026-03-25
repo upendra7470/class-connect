@@ -5,8 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { QRGenerator } from "@/components/QRGenerator";
 import { StatCard } from "@/components/StatCard";
-import { BookOpen, CheckCircle, BarChart3, Calendar } from "lucide-react";
+import { BookOpen, CheckCircle, BarChart3, Calendar, FlaskConical } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { BunkSimulator } from "@/components/BunkSimulator";
 
 interface AttendanceRecord {
   id: string;
@@ -58,10 +59,22 @@ export default function StudentDashboard() {
   const attended = attendance.length;
   const percentage = totalClasses > 0 ? Math.round((attended / totalClasses) * 100) : 0;
 
-  // Per-subject breakdown
+  // Per-subject breakdown with total estimate
   const subjectAttendance = subjects.map((s) => {
     const count = attendance.filter((a) => a.subject_id === s.id).length;
-    return { ...s, count };
+    // Count how many timetable slots this subject has per week
+    const weeklySlots = timetable.filter((t) => {
+      // timetable has subjects relation, match by name/code
+      return t.subjects?.subject_code === s.subject_code;
+    }).length;
+    const estimatedTotal = Math.max(weeklySlots * 4, 1); // ~4 weeks estimate, min 1
+    return { ...s, count, total: estimatedTotal };
+  });
+
+  // Timetable entries with subject_id for bunk simulator
+  const timetableWithIds = timetable.map((t) => {
+    const sub = subjects.find((s) => s.subject_code === t.subjects?.subject_code);
+    return { day_of_week: t.day_of_week, period_number: t.period_number, subject_id: sub?.id || "" };
   });
 
   if (loading) {
@@ -81,6 +94,14 @@ export default function StudentDashboard() {
           <h2 className="text-xl font-bold">My QR Code</h2>
           <QRGenerator studentId={user?.id || ""} />
         </div>
+      ) : tab === "bunk" ? (
+        <BunkSimulator
+          subjectAttendance={subjectAttendance.map((s) => ({
+            id: s.id, subject_name: s.subject_name, subject_code: s.subject_code,
+            attended: s.count, total: s.total,
+          }))}
+          timetable={timetableWithIds}
+        />
       ) : tab === "attendance" ? (
         <div className="space-y-4">
           <h2 className="text-xl font-bold">Attendance History</h2>
@@ -165,6 +186,10 @@ export default function StudentDashboard() {
               <a href="/dashboard/student?tab=attendance" className="stat-card text-center">
                 <BarChart3 className="h-6 w-6 mx-auto mb-2 text-primary" />
                 <p className="text-sm font-medium">View Attendance</p>
+              </a>
+              <a href="/dashboard/student?tab=bunk" className="stat-card text-center">
+                <FlaskConical className="h-6 w-6 mx-auto mb-2 text-primary" />
+                <p className="text-sm font-medium">Bunk Simulator</p>
               </a>
             </div>
           </div>
