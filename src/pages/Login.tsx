@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QrCode, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 type AppRole = "student" | "leader" | "faculty" | "hod";
 const roleLabels: Record<AppRole, string> = { student: "Student", leader: "Class Leader", faculty: "Faculty", hod: "HOD" };
@@ -35,17 +36,24 @@ export default function Login() {
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success("Account created! Please check your email to confirm.");
+        toast.success("Account created successfully! You can now sign in.");
+        setIsSignUp(false);
       }
     } else {
       const { error } = await signIn(email, password);
       if (error) {
         toast.error(error.message);
       } else {
-        // Role will be loaded by auth context, redirect happens in App.tsx
         toast.success("Logged in successfully!");
-        // Small delay for role to load
-        setTimeout(() => navigate("/"), 500);
+        // Fetch role and redirect
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", session.user.id).single();
+          const userRole = roleData?.role || "student";
+          navigate(`/dashboard/${userRole}`, { replace: true });
+        } else {
+          navigate("/", { replace: true });
+        }
       }
     }
     setLoading(false);
