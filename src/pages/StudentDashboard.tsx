@@ -187,6 +187,10 @@ export default function StudentDashboard() {
                 <BarChart3 className="h-6 w-6 mx-auto mb-2 text-primary" />
                 <p className="text-sm font-medium">View Attendance</p>
               </a>
+              <a href="/dashboard/student?tab=bunk" className="stat-card text-center">
+                <FlaskConical className="h-6 w-6 mx-auto mb-2 text-primary" />
+                <p className="text-sm font-medium">Bunk Simulator</p>
+              </a>
             </div>
           </div>
         </div>
