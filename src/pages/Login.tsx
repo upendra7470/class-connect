@@ -42,10 +42,16 @@ export default function Login() {
       if (error) {
         toast.error(error.message);
       } else {
-        // Role will be loaded by auth context, redirect happens in App.tsx
         toast.success("Logged in successfully!");
-        // Small delay for role to load
-        setTimeout(() => navigate("/"), 500);
+        // Fetch role and redirect
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", session.user.id).single();
+          const userRole = roleData?.role || "student";
+          navigate(`/dashboard/${userRole}`, { replace: true });
+        } else {
+          navigate("/", { replace: true });
+        }
       }
     }
     setLoading(false);
