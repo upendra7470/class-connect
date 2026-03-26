@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { QRGenerator } from "@/components/QRGenerator";
 import { StatCard } from "@/components/StatCard";
-import { BookOpen, CheckCircle, BarChart3, Calendar, FlaskConical } from "lucide-react";
+import { BookOpen, CheckCircle, BarChart3, Calendar, FlaskConical, ArrowLeft } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BunkSimulator } from "@/components/BunkSimulator";
+import { Button } from "@/components/ui/button";
 
 interface AttendanceRecord {
   id: string;
@@ -26,56 +28,118 @@ interface SubjectInfo {
 interface TimetableEntry {
   day_of_week: string;
   period_number: number;
+  subject_id: string;
   subjects: { subject_name: string; subject_code: string } | null;
+}
+
+// Total attendance per subject (all students) to get total classes conducted
+interface TotalClassCount {
+  subject_id: string;
+  period_number: number;
+  date: string;
 }
 
 export default function StudentDashboard() {
   const { user, profile } = useAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const tab = searchParams.get("tab") || "dashboard";
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [subjects, setSubjects] = useState<SubjectInfo[]>([]);
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterSubject, setFilterSubject] = useState<string>("all");
+  // Track total distinct classes per subject (unique date+period combos from all attendance)
+  const [totalClassesMap, setTotalClassesMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!user || !profile) return;
     const fetchData = async () => {
       setLoading(true);
-      const [attRes, subRes, ttRes] = await Promise.all([
-        supabase.from("attendance").select("id, date, period_number, created_at, subject_id").eq("student_id", user.id),
-        supabase.from("subjects").select("id, subject_name, subject_code").eq("department", profile.department),
-        supabase.from("timetable").select("day_of_week, period_number, subjects(subject_name, subject_code)").eq("department", profile.department).eq("year", profile.year).eq("section", profile.section),
-      ]);
+
+      // Fetch subjects for the student's department
+      const subRes = await supabase
+        .from("subjects")
+        .select("id, subject_name, subject_code")
+        .eq("department", profile.department);
+
+      const subjectsList: SubjectInfo[] = subRes.data || [];
+      setSubjects(subjectsList);
+
+      // Fetch student's own attendance
+      const attRes = await supabase
+        .from("attendance")
+        .select("id, date, period_number, created_at, subject_id")
+        .eq("student_id", user.id);
       if (attRes.data) setAttendance(attRes.data);
-      if (subRes.data) setSubjects(subRes.data);
+
+      // Fetch timetable
+      const ttRes = await supabase
+        .from("timetable")
+        .select("day_of_week, period_number, subject_id, subjects(subject_name, subject_code)")
+        .eq("department", profile.department)
+        .eq("year", profile.year)
+        .eq("section", profile.section);
       if (ttRes.data) setTimetable(ttRes.data as unknown as TimetableEntry[]);
+
+      // Calculate total classes per subject using timetable slots * ~4 weeks as estimate
+      // OR use actual attendance data if available
+      const classesMap: Record<string, number> = {};
+      for (const sub of subjectsList) {
+        // Count unique (date, period_number) combos in the student's attendance for this subject
+        // Since we can only see own attendance, use timetable-based estimate as fallback
+        const studentCount = (attRes.data || []).filter(a => a.subject_id === sub.id).length;
+        
+        // Use timetable weekly slots * 4 weeks as estimated total, minimum of student's attended count
+        const weeklySlots = (ttRes.data || []).filter((t: any) => {
+          return t.subjects?.subject_code === sub.subject_code || t.subject_id === sub.id;
+        }).length;
+        const estimatedTotal = Math.max(weeklySlots * 4, studentCount, 1);
+        classesMap[sub.id] = estimatedTotal;
+      }
+      setTotalClassesMap(classesMap);
+
       setLoading(false);
     };
     fetchData();
   }, [user, profile]);
 
-  const totalClasses = subjects.length * 30; // estimate
-  const attended = attendance.length;
-  const percentage = totalClasses > 0 ? Math.round((attended / totalClasses) * 100) : 0;
-
-  // Per-subject breakdown with total estimate
+  // Per-subject breakdown
   const subjectAttendance = subjects.map((s) => {
-    const count = attendance.filter((a) => a.subject_id === s.id).length;
-    // Count how many timetable slots this subject has per week
-    const weeklySlots = timetable.filter((t) => {
-      // timetable has subjects relation, match by name/code
-      return t.subjects?.subject_code === s.subject_code;
-    }).length;
-    const estimatedTotal = Math.max(weeklySlots * 4, 1); // ~4 weeks estimate, min 1
-    return { ...s, count, total: estimatedTotal };
+    const attended = attendance.filter((a) => a.subject_id === s.id).length;
+    const total = totalClassesMap[s.id] || 1;
+    const percentage = total > 0 ? Math.round((attended / total) * 100) : 0;
+    return { ...s, attended, total, percentage };
   });
+
+  // Overall stats
+  const totalClassesAll = subjectAttendance.reduce((sum, s) => sum + s.total, 0);
+  const totalAttended = subjectAttendance.reduce((sum, s) => sum + s.attended, 0);
+  const overallPercentage = totalClassesAll > 0 ? Math.round((totalAttended / totalClassesAll) * 100) : 0;
+
+  // Filtered attendance for log
+  const filteredAttendance = filterSubject === "all"
+    ? attendance
+    : attendance.filter((a) => a.subject_id === filterSubject);
 
   // Timetable entries with subject_id for bunk simulator
-  const timetableWithIds = timetable.map((t) => {
-    const sub = subjects.find((s) => s.subject_code === t.subjects?.subject_code);
-    return { day_of_week: t.day_of_week, period_number: t.period_number, subject_id: sub?.id || "" };
-  });
+  const timetableWithIds = timetable.map((t) => ({
+    day_of_week: t.day_of_week,
+    period_number: t.period_number,
+    subject_id: t.subject_id || "",
+  }));
+
+  const BackButton = () => (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => navigate(-1)}
+      className="mb-4"
+    >
+      <ArrowLeft className="h-4 w-4 mr-1" />
+      Back
+    </Button>
+  );
 
   if (loading) {
     return (
@@ -89,6 +153,8 @@ export default function StudentDashboard() {
 
   return (
     <DashboardLayout>
+      {tab !== "dashboard" && <BackButton />}
+
       {tab === "qr" ? (
         <div className="flex flex-col items-center gap-6">
           <h2 className="text-xl font-bold">My QR Code</h2>
@@ -98,45 +164,81 @@ export default function StudentDashboard() {
         <BunkSimulator
           subjectAttendance={subjectAttendance.map((s) => ({
             id: s.id, subject_name: s.subject_name, subject_code: s.subject_code,
-            attended: s.count, total: s.total,
+            attended: s.attended, total: s.total,
           }))}
           timetable={timetableWithIds}
         />
       ) : tab === "attendance" ? (
         <div className="space-y-4">
           <h2 className="text-xl font-bold">Attendance History</h2>
+
+          {/* Subject filter dropdown */}
+          <div className="max-w-xs">
+            <Select value={filterSubject} onValueChange={setFilterSubject}>
+              <SelectTrigger><SelectValue placeholder="Filter by subject" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subjects</SelectItem>
+                {subjects.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.subject_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Subject-wise attendance cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {subjectAttendance.map((s) => (
               <div key={s.id} className="stat-card">
                 <p className="font-semibold">{s.subject_name}</p>
                 <p className="text-sm text-muted-foreground">{s.subject_code}</p>
-                <p className="text-2xl font-bold mt-2">{s.count} <span className="text-sm font-normal text-muted-foreground">classes</span></p>
+                <div className="flex items-baseline gap-2 mt-2">
+                  <span className="text-2xl font-bold">{s.percentage}%</span>
+                  <span className="text-sm text-muted-foreground">
+                    ({s.attended}/{s.total} classes)
+                  </span>
+                </div>
+                <div className={`text-xs font-medium mt-1 ${s.percentage >= 75 ? "text-green-600" : "text-red-600"}`}>
+                  {s.percentage >= 75 ? "✓ Safe" : "✗ Below 75%"}
+                </div>
               </div>
             ))}
           </div>
-          {attendance.length > 0 && (
+
+          {/* Attendance log table */}
+          {filteredAttendance.length > 0 ? (
             <div className="bg-card border rounded-xl overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Period</TableHead>
                     <TableHead>Subject</TableHead>
+                    <TableHead>Period</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {attendance.slice(0, 50).map((a) => {
+                  {filteredAttendance.slice(0, 50).map((a) => {
                     const sub = subjects.find((s) => s.id === a.subject_id);
                     return (
                       <TableRow key={a.id}>
                         <TableCell>{a.date}</TableCell>
-                        <TableCell>Period {a.period_number}</TableCell>
                         <TableCell>{sub?.subject_name || "—"}</TableCell>
+                        <TableCell>Period {a.period_number}</TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center gap-1 text-green-600 text-sm font-medium">
+                            <CheckCircle className="h-3.5 w-3.5" /> Present
+                          </span>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
                 </TableBody>
               </Table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
+              <p>No attendance records found.</p>
             </div>
           )}
         </div>
@@ -172,9 +274,9 @@ export default function StudentDashboard() {
         <div className="space-y-6">
           <h2 className="text-xl font-bold">Welcome, {profile?.name || "Student"}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <StatCard title="Total Classes" value={totalClasses} icon={BookOpen} />
-            <StatCard title="Classes Attended" value={attended} icon={CheckCircle} variant="success" />
-            <StatCard title="Attendance %" value={`${percentage}%`} icon={BarChart3} variant={percentage < 75 ? "warning" : "success"} />
+            <StatCard title="Total Classes" value={totalClassesAll} icon={BookOpen} />
+            <StatCard title="Classes Attended" value={totalAttended} icon={CheckCircle} variant="success" />
+            <StatCard title="Attendance %" value={`${overallPercentage}%`} icon={BarChart3} variant={overallPercentage < 75 ? "warning" : "success"} />
           </div>
           <div className="bg-card border rounded-xl p-6">
             <h3 className="font-semibold mb-3">Quick Actions</h3>
