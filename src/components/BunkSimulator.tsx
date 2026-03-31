@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { AlertTriangle, ShieldCheck, TrendingDown, CalendarDays } from "lucide-react";
+import { AlertTriangle, ShieldCheck, GraduationCap, Info } from "lucide-react";
 
-// The actual timetable data from your image
-const TIMETABLE_DATA = {
+// Timetable mapping from your image
+const TIMETABLE_DATA: Record<string, string[]> = {
   monday: ["DBMS", "OS LAB", "OS LAB", "OS LAB", "SE", "SE", "OS"],
   tuesday: ["WEET TEST", "WEET TEST", "DM", "BEFA", "DBMS", "OS", "SE"],
   wednesday: ["SDC LAB", "SDC LAB", "COI", "DM", "OS", "BEFA", "RTP"],
@@ -16,126 +17,125 @@ const TIMETABLE_DATA = {
 
 interface SubjectAttendance {
   id: string;
-  subject_name: string; // e.g., "DBMS"
+  subject_name: string;
   attended: number;
   total: number;
 }
 
-interface SimResult {
-  subject_name: string;
-  currentPct: number;
-  newPct: number;
-  classesMissed: number;
-  safe: boolean;
-}
-
 export function BunkSimulator({ subjectAttendance }: { subjectAttendance: SubjectAttendance[] }) {
   const [selectedDay, setSelectedDay] = useState<string>("monday");
-  const [results, setResults] = useState<SimResult[]>([]);
+  const [selectedPeriods, setSelectedPeriods] = useState<number[]>([]); // Array of period indices (0-6)
 
+  // Reset selected periods when day changes
   useEffect(() => {
-    calculateImpact();
-  }, [selectedDay, subjectAttendance]);
+    setSelectedPeriods([]);
+  }, [selectedDay]);
 
-  const calculateImpact = () => {
-    // 1. Get the subjects occurring on the chosen day
-    const subjectsToday = TIMETABLE_DATA[selectedDay as keyof typeof TIMETABLE_DATA];
-    
-    // 2. Map how many times each subject appears today
-    const countsToday: Record<string, number> = {};
-    subjectsToday.forEach(sub => {
-      countsToday[sub] = (countsToday[sub] || 0) + 1;
-    });
-
-    // 3. Calculate new percentages for all subjects in user's list
-    const simResults = subjectAttendance.map((sa) => {
-      const missedToday = countsToday[sa.subject_name] || 0;
-      
-      const currentPct = sa.total > 0 ? (sa.attended / sa.total) * 100 : 100;
-      // When you bunk, the "Total Classes Held" increases, but "Attended" stays the same
-      const newTotal = sa.total + missedToday;
-      const newPct = newTotal > 0 ? (sa.attended / newTotal) * 100 : 100;
-
-      return {
-        subject_name: sa.subject_name,
-        currentPct: Math.round(currentPct * 10) / 10,
-        newPct: Math.round(newPct * 10) / 10,
-        classesMissed: missedToday,
-        safe: newPct >= 75,
-      };
-    });
-
-    setResults(simResults);
+  const togglePeriod = (index: number) => {
+    setSelectedPeriods(prev => 
+      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+    );
   };
 
+  const selectWholeDay = () => {
+    setSelectedPeriods([0, 1, 2, 3, 4, 5, 6]);
+  };
+
+  // Calculate stats
+  const simulation = subjectAttendance.map(sa => {
+    const classesBunkedToday = selectedPeriods.filter(
+      idx => TIMETABLE_DATA[selectedDay][idx] === sa.subject_name
+    ).length;
+
+    const currentPct = sa.total > 0 ? (sa.attended / sa.total) * 100 : 100;
+    const newTotal = sa.total + classesBunkedToday;
+    const newPct = newTotal > 0 ? (sa.attended / newTotal) * 100 : 100;
+    const loss = currentPct - newPct;
+
+    return { ...sa, newPct, loss, isAtRisk: newPct < 75 };
+  });
+
+  const totalLoss = simulation.reduce((acc, curr) => acc + curr.loss, 0);
+  const isAnyAtRisk = simulation.some(s => s.isAtRisk && s.loss > 0);
+
   return (
-    <div className="space-y-6 p-4 border rounded-xl bg-card text-card-foreground shadow-sm">
-      <div className="flex items-center gap-2">
-        <CalendarDays className="w-5 h-5 text-primary" />
-        <h2 className="text-xl font-bold tracking-tight">Day-Off Simulator</h2>
+    <div className="max-w-2xl mx-auto space-y-6 p-6 bg-background border rounded-2xl shadow-sm">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <GraduationCap className="w-6 h-6 text-primary" /> Class Connect Bunk Sim
+        </h2>
       </div>
 
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="day-select">If I bunk all classes on:</Label>
+      {/* Day Selection */}
+      <div className="flex flex-col sm:flex-row gap-4 items-end">
+        <div className="space-y-2 flex-1">
+          <label className="text-sm font-medium">Select Day</label>
           <Select value={selectedDay} onValueChange={setSelectedDay}>
-            <SelectTrigger id="day-select" className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Select Day" />
-            </SelectTrigger>
+            <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {Object.keys(TIMETABLE_DATA).map((day) => (
-                <SelectItem key={day} value={day} className="capitalize">
-                  {day}
-                </SelectItem>
+              {Object.keys(TIMETABLE_DATA).map(day => (
+                <SelectItem key={day} value={day} className="capitalize">{day}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+        <Button variant="outline" onClick={selectWholeDay} className="w-full sm:w-auto">
+          Bunk Whole Day
+        </Button>
+      </div>
 
-        <div className="bg-muted/50 p-4 rounded-lg border border-dashed">
-          <p className="text-sm font-medium mb-2">Periods you will miss:</p>
-          <div className="flex flex-wrap gap-2">
-            {TIMETABLE_DATA[selectedDay as keyof typeof TIMETABLE_DATA].map((sub, i) => (
-              <span key={i} className="px-2 py-1 bg-background border rounded text-xs font-mono">
-                P{i + 1}: {sub}
+      {/* Period Selector */}
+      <div className="space-y-3">
+        <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Select Periods to Bunk:</p>
+        <div className="grid grid-cols-1 gap-2">
+          {TIMETABLE_DATA[selectedDay].map((subject, idx) => (
+            <div 
+              key={idx} 
+              onClick={() => togglePeriod(idx)}
+              className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                selectedPeriods.includes(idx) ? "bg-destructive/10 border-destructive" : "bg-card hover:bg-accent"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Checkbox checked={selectedPeriods.includes(idx)} />
+                <span className="font-medium text-sm">Period {idx + 1}: {subject}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {idx < 4 ? "Morning Session" : "Afternoon Session"}
               </span>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {results.map((r, i) => (
-          <Card key={i} className={`overflow-hidden border-l-4 ${r.classesMissed > 0 ? (r.safe ? "border-l-yellow-500" : "border-l-destructive") : "border-l-muted"}`}>
-            <CardContent className="p-4">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <h3 className="font-bold text-sm uppercase">{r.subject_name}</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {r.classesMissed > 0 ? `Misses ${r.classesMissed} period(s)` : "No classes today"}
-                  </p>
-                </div>
-                {r.classesMissed > 0 && (
-                  r.safe ? <ShieldCheck className="w-4 h-4 text-green-500" /> : <AlertTriangle className="w-4 h-4 text-destructive" />
-                )}
-              </div>
+      {/* Results Banner */}
+      {selectedPeriods.length > 0 && (
+        <Card className={`border-2 ${isAnyAtRisk ? "border-destructive bg-destructive/5" : "border-primary bg-primary/5"}`}>
+          <CardContent className="pt-6 text-center space-y-2">
+            <h3 className="text-xl font-bold">
+              {isAnyAtRisk ? "⚠️ GO MAN TO COLLEGE!" : "✅ You're relatively safe"}
+            </h3>
+            <p className="text-sm">
+              Bunking <strong>{selectedPeriods.length}</strong> classes will cost you an aggregate of 
+              <span className="text-destructive font-bold ml-1">{totalLoss.toFixed(1)}%</span> attendance.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
-              <div className="flex justify-between items-end">
-                <div className="text-2xl font-bold tracking-tighter">
-                  {r.newPct}%
-                  <span className="text-xs font-normal text-muted-foreground ml-2">
-                    (was {r.currentPct}%)
-                  </span>
-                </div>
-                {r.classesMissed > 0 && (
-                  <div className="flex items-center text-destructive text-xs font-bold">
-                    <TrendingDown className="w-3 h-3 mr-1" />
-                    -{Math.round((r.currentPct - r.newPct) * 10) / 10}%
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+      {/* Detailed Breakdown */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {simulation.filter(s => s.loss > 0).map(s => (
+          <div key={s.id} className="p-3 border rounded-lg flex justify-between items-center bg-card">
+            <div>
+              <p className="text-xs font-bold text-muted-foreground uppercase">{s.subject_name}</p>
+              <p className="text-lg font-bold">{s.newPct.toFixed(1)}%</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-destructive font-semibold">-{s.loss.toFixed(1)}%</p>
+              {s.isAtRisk ? <AlertTriangle className="w-4 h-4 text-destructive ml-auto" /> : <ShieldCheck className="w-4 h-4 text-green-500 ml-auto" />}
+            </div>
+          </div>
         ))}
       </div>
     </div>
