@@ -1,15 +1,22 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, ShieldCheck, TrendingDown } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { AlertTriangle, ShieldCheck, TrendingDown, CalendarDays } from "lucide-react";
+
+// The actual timetable data from your image
+const TIMETABLE_DATA = {
+  monday: ["DBMS", "OS LAB", "OS LAB", "OS LAB", "SE", "SE", "OS"],
+  tuesday: ["WEET TEST", "WEET TEST", "DM", "BEFA", "DBMS", "OS", "SE"],
+  wednesday: ["SDC LAB", "SDC LAB", "COI", "DM", "OS", "BEFA", "RTP"],
+  thursday: ["DM", "DM", "BEFA", "COI", "RTP", "DBMS", "SPORTS"],
+  friday: ["OS", "DBMS LAB", "DBMS LAB", "DBMS LAB", "SE", "BEFA", "DBMS"],
+  saturday: ["SEP/DBMS LAB", "SEP/DBMS LAB", "SEP/OS LAB", "SEP/OS LAB", "SEP/NODE JS LAB", "SEP/NODE JS LAB", "LIB"],
+};
 
 interface SubjectAttendance {
   id: string;
-  subject_name: string;
-  subject_code: string;
+  subject_name: string; // e.g., "DBMS"
   attended: number;
   total: number;
 }
@@ -18,174 +25,119 @@ interface SimResult {
   subject_name: string;
   currentPct: number;
   newPct: number;
-  diff: number;
+  classesMissed: number;
   safe: boolean;
 }
 
-const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-
-interface BunkSimulatorProps {
-  subjectAttendance: SubjectAttendance[];
-  timetable: { day_of_week: string; period_number: number; subject_id: string }[];
-}
-
-export function BunkSimulator({ subjectAttendance, timetable }: BunkSimulatorProps) {
-  const [selectedSubject, setSelectedSubject] = useState<string>("all");
-  const [bunkCount, setBunkCount] = useState<string>("1");
-  const [dayFilter, setDayFilter] = useState<string>("any");
+export function BunkSimulator({ subjectAttendance }: { subjectAttendance: SubjectAttendance[] }) {
+  const [selectedDay, setSelectedDay] = useState<string>("monday");
   const [results, setResults] = useState<SimResult[]>([]);
 
-  // Auto-simulate whenever inputs change
   useEffect(() => {
-    simulate();
-  }, [selectedSubject, bunkCount, dayFilter, subjectAttendance]);
+    calculateImpact();
+  }, [selectedDay, subjectAttendance]);
 
-  const simulate = () => {
-    const bunks = Math.max(1, parseInt(bunkCount) || 1);
+  const calculateImpact = () => {
+    // 1. Get the subjects occurring on the chosen day
+    const subjectsToday = TIMETABLE_DATA[selectedDay as keyof typeof TIMETABLE_DATA];
+    
+    // 2. Map how many times each subject appears today
+    const countsToday: Record<string, number> = {};
+    subjectsToday.forEach(sub => {
+      countsToday[sub] = (countsToday[sub] || 0) + 1;
+    });
 
-    const targetsIds =
-      selectedSubject === "all"
-        ? subjectAttendance.map((s) => s.id)
-        : [selectedSubject];
+    // 3. Calculate new percentages for all subjects in user's list
+    const simResults = subjectAttendance.map((sa) => {
+      const missedToday = countsToday[sa.subject_name] || 0;
+      
+      const currentPct = sa.total > 0 ? (sa.attended / sa.total) * 100 : 100;
+      // When you bunk, the "Total Classes Held" increases, but "Attended" stays the same
+      const newTotal = sa.total + missedToday;
+      const newPct = newTotal > 0 ? (sa.attended / newTotal) * 100 : 100;
 
-    const simResults: SimResult[] = [];
-
-    for (const sid of targetsIds) {
-      const sa = subjectAttendance.find((s) => s.id === sid);
-      if (!sa) continue;
-
-      let extraClasses = bunks;
-
-      if (dayFilter !== "any") {
-        const periodsOnDay = timetable.filter(
-          (t) => t.subject_id === sid && t.day_of_week.toLowerCase() === dayFilter
-        ).length;
-        if (periodsOnDay === 0) {
-          const pct = sa.total > 0 ? Math.round((sa.attended / sa.total) * 100) : 0;
-          simResults.push({
-            subject_name: sa.subject_name,
-            currentPct: pct,
-            newPct: pct,
-            diff: 0,
-            safe: pct >= 75,
-          });
-          continue;
-        }
-        extraClasses = bunks * periodsOnDay;
-      }
-
-      const currentPct = sa.total > 0 ? (sa.attended / sa.total) * 100 : 0;
-      const newTotal = sa.total + extraClasses;
-      const newPct = newTotal > 0 ? (sa.attended / newTotal) * 100 : 0;
-      const diff = newPct - currentPct;
-
-      simResults.push({
+      return {
         subject_name: sa.subject_name,
         currentPct: Math.round(currentPct * 10) / 10,
         newPct: Math.round(newPct * 10) / 10,
-        diff: Math.round(diff * 10) / 10,
+        classesMissed: missedToday,
         safe: newPct >= 75,
-      });
-    }
+      };
+    });
 
     setResults(simResults);
   };
 
-  const totalLoss = results.length > 0
-    ? Math.round((results.reduce((s, r) => s + Math.abs(r.diff), 0) / results.length) * 10) / 10
-    : 0;
-
   return (
-    <div className="space-y-5">
-      <h2 className="text-xl font-bold">Bunk Simulator</h2>
-      <p className="text-sm text-muted-foreground">
-        See how bunking classes affects your attendance — results update instantly.
-      </p>
+    <div className="space-y-6 p-4 border rounded-xl bg-card text-card-foreground shadow-sm">
+      <div className="flex items-center gap-2">
+        <CalendarDays className="w-5 h-5 text-primary" />
+        <h2 className="text-xl font-bold tracking-tight">Day-Off Simulator</h2>
+      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="space-y-4">
         <div className="space-y-2">
-          <Label>Subject</Label>
-          <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-            <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
+          <Label htmlFor="day-select">If I bunk all classes on:</Label>
+          <Select value={selectedDay} onValueChange={setSelectedDay}>
+            <SelectTrigger id="day-select" className="w-full sm:w-[200px]">
+              <SelectValue placeholder="Select Day" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Subjects</SelectItem>
-              {subjectAttendance.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.subject_name}</SelectItem>
+              {Object.keys(TIMETABLE_DATA).map((day) => (
+                <SelectItem key={day} value={day} className="capitalize">
+                  {day}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        <div className="space-y-2">
-          <Label>Classes to Bunk</Label>
-          <Input
-            type="number"
-            min={1}
-            max={50}
-            value={bunkCount}
-            onChange={(e) => setBunkCount(e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Day Filter (optional)</Label>
-          <Select value={dayFilter} onValueChange={setDayFilter}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="any">Any Day</SelectItem>
-              {DAYS.map((d) => (
-                <SelectItem key={d} value={d} className="capitalize">{d.charAt(0).toUpperCase() + d.slice(1)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="bg-muted/50 p-4 rounded-lg border border-dashed">
+          <p className="text-sm font-medium mb-2">Periods you will miss:</p>
+          <div className="flex flex-wrap gap-2">
+            {TIMETABLE_DATA[selectedDay as keyof typeof TIMETABLE_DATA].map((sub, i) => (
+              <span key={i} className="px-2 py-1 bg-background border rounded text-xs font-mono">
+                P{i + 1}: {sub}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Summary banner */}
-      {results.length > 0 && totalLoss > 0 && (
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-          <TrendingDown className="h-5 w-5 text-destructive shrink-0" />
-          <p className="text-sm font-medium">
-            Bunking <strong>{bunkCount}</strong> class{parseInt(bunkCount) !== 1 ? "es" : ""} will drop your attendance by an average of <strong className="text-destructive">{totalLoss}%</strong>
-          </p>
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {results.map((r, i) => (
+          <Card key={i} className={`overflow-hidden border-l-4 ${r.classesMissed > 0 ? (r.safe ? "border-l-yellow-500" : "border-l-destructive") : "border-l-muted"}`}>
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <h3 className="font-bold text-sm uppercase">{r.subject_name}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {r.classesMissed > 0 ? `Misses ${r.classesMissed} period(s)` : "No classes today"}
+                  </p>
+                </div>
+                {r.classesMissed > 0 && (
+                  r.safe ? <ShieldCheck className="w-4 h-4 text-green-500" /> : <AlertTriangle className="w-4 h-4 text-destructive" />
+                )}
+              </div>
 
-      {results.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {results.map((r, i) => (
-            <Card key={i} className={`border-l-4 ${r.safe ? "border-l-green-500" : "border-l-red-500"}`}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  {r.safe ? <ShieldCheck className="h-4 w-4 text-green-500" /> : <AlertTriangle className="h-4 w-4 text-red-500" />}
-                  {r.subject_name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1.5 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Current</span>
-                  <span className="font-semibold">{r.currentPct}%</span>
+              <div className="flex justify-between items-end">
+                <div className="text-2xl font-bold tracking-tighter">
+                  {r.newPct}%
+                  <span className="text-xs font-normal text-muted-foreground ml-2">
+                    (was {r.currentPct}%)
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">After Bunk</span>
-                  <span className={`font-semibold ${r.safe ? "text-green-600" : "text-red-600"}`}>{r.newPct}%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">% Lost</span>
-                  <span className="font-bold text-destructive">{r.diff}%</span>
-                </div>
-                <p className={`text-xs font-medium mt-1 ${r.safe ? "text-green-600" : "text-red-600"}`}>
-                  {r.safe ? "✓ Safe — above 75%" : "✗ Risk — below 75%"}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {subjectAttendance.length === 0 && (
-        <p className="text-muted-foreground text-center py-6">No subjects found. Attendance data is needed to simulate.</p>
-      )}
+                {r.classesMissed > 0 && (
+                  <div className="flex items-center text-destructive text-xs font-bold">
+                    <TrendingDown className="w-3 h-3 mr-1" />
+                    -{Math.round((r.currentPct - r.newPct) * 10) / 10}%
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
